@@ -335,6 +335,7 @@ endif
 ifeq ($(CONFIG_ALBUS_DTB),y)
 dtb-$(CONFIG_ARCH_MSM8953) += msm8953-albus-p0.dtb
 dtb-$(CONFIG_ARCH_MSM8953) += msm8953-albus-p1.dtb
+dtb-$(CONFIG_ARCH_MSM8953) += msm8953-albus-p1a1.dtb
 endif
 
 ifeq ($(CONFIG_JOHNSON_DTB),y)
