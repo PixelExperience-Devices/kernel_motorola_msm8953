@@ -30,4 +30,18 @@
 			"IN2L", "MICBIAS2B",
 			"IN1BR", "MICBIAS2A";
 	};
+
+	spi@7af7000 {
+		marley@0 {
+			wlf,micd-configs = <0 3 0>;
+		};
+	};
+};
+
+&spmi_bus {
+	qcom,pmi8950@3 {
+		qcom,leds@d300 {
+			/delete-property/ qcom,self-check-enabled;
+		};
+	};
 };
