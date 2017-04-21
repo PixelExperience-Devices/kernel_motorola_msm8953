@@ -96,3 +96,4 @@ obj-$(CONFIG_TPS61280) += tps61280.o
 # TODO: remove me b/62057517
 subdir-ccflags-y += \
 	-Wno-ignored-attributes
+obj-y += moto-dtv/
