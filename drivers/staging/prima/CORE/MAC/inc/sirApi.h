@@ -4324,14 +4324,6 @@ typedef struct sSirRcvPktFilterCfg
   tSirRcvPktFilterFieldParams     paramsData[SIR_MAX_NUM_TESTS_PER_FILTER];
 }tSirRcvPktFilterCfgType, *tpSirRcvPktFilterCfgType;
 
-// IKJB42MAIN-1244, Motorola, a19091 - BEGIN
-typedef struct sSirInvokeV6Filter
-{
-    int (*configureFilterFn)(void *pAdapter, v_U8_t set, v_U8_t userSet);
-    void *pHddAdapter;
-    v_U8_t set;
-}tSirInvokeV6Filter;
-// IKJB42MAIN-1244, Motorola, a19091 - END
 //
 // Filter Packet Match Count Parameters
 //
@@ -4361,6 +4353,8 @@ typedef struct sSirRcvFltPktClearParam
   tANI_U8    filterId;
   tSirMacAddr selfMacAddr;
   tSirMacAddr bssId;
+  pktFilterReqCb     pktFilterCallback;
+  void        *cbCtx;
 }tSirRcvFltPktClearParam, *tpSirRcvFltPktClearParam;
 
 //
@@ -4863,6 +4857,9 @@ typedef struct sSirAddPeriodicTxPtrn
 {
     /* MAC Address for the adapter */
     tSirMacAddr macAddress;
+
+     /* BSSID of the connection */
+     tSirMacAddr bss_address;
 
     tANI_U8  ucPtrnId;           // Pattern ID
     tANI_U16 ucPtrnSize;         // Pattern size

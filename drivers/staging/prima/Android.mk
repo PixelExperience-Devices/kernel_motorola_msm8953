@@ -124,9 +124,6 @@ KBUILD_OPTIONS += MODNAME=wlan
 KBUILD_OPTIONS += BOARD_PLATFORM=$(TARGET_BOARD_PLATFORM)
 KBUILD_OPTIONS += $(WLAN_SELECT)
 
-ifneq ($(TARGET_BUILD_VARIANT),user)
-KBUILD_OPTIONS += ENABLE_DRIVER_VERBOSE=1
-endif
 
 ifeq ($(KERNEL_TO_BUILD_ROOT_OFFSET),../../)
 VERSION=$(shell grep -w "VERSION =" $(TOP)/kernel/msm-$(TARGET_KERNEL_VERSION)/Makefile | sed 's/^VERSION = //' )
@@ -139,7 +136,7 @@ endif
 include $(CLEAR_VARS)
 LOCAL_MODULE              := $(WLAN_CHIPSET)_wlan.ko
 LOCAL_MODULE_KBUILD_NAME  := wlan.ko
-LOCAL_MODULE_TAGS         := optional
+LOCAL_MODULE_TAGS         := debug
 LOCAL_MODULE_DEBUG_ENABLE := true
 ifeq ($(PRODUCT_VENDOR_MOVE_ENABLED), true)
     ifeq ($(WIFI_DRIVER_INSTALL_TO_KERNEL_OUT),true)
@@ -150,26 +147,6 @@ ifeq ($(PRODUCT_VENDOR_MOVE_ENABLED), true)
 else
     LOCAL_MODULE_PATH         := $(TARGET_OUT)/lib/modules/$(WLAN_CHIPSET)
 endif # PRODUCT_VENDOR_MOVE_ENABLED
-
-# Copy the unstrip file and all elf files to out symbols folders
-###########################################################
-WLAN_SYMBOLS_OUT        := $(TARGET_OUT_UNSTRIPPED)/$(LOCAL_PATH)
-UNSTRIPPED_MODULE       := $(WLAN_CHIPSET)_wlan.ko.unstripped
-UNSTRIPPED_FILE_PATH    := $(TARGET_OUT_INTERMEDIATES)/$(LOCAL_PATH)/$(UNSTRIPPED_MODULE)
-
-ifneq (,$(filter deen%,$(TARGET_PRODUCT)))
-WLAN_ELF_FILE_PATH      := vendor/qcom/nonhlos/wcnss_proc-403/build/ms
-else
-WLAN_ELF_FILE_PATH      := vendor/qcom/nonhlos/CNSS.PR.4.0.3/wcnss_proc/build/ms
-endif
-
-INSTALL_WLAN_UNSTRIPPED_MODULE := mkdir -p $(WLAN_SYMBOLS_OUT); \
-   cp -rf $(UNSTRIPPED_FILE_PATH) $(WLAN_SYMBOLS_OUT); \
-   cp -rf $(WLAN_ELF_FILE_PATH)/*.elf $(WLAN_SYMBOLS_OUT)
-
-LOCAL_POST_INSTALL_CMD := $(INSTALL_WLAN_UNSTRIPPED_MODULE)
-###########################################################
-
 include $(DLKM_DIR)/AndroidKernelModule.mk
 ###########################################################
 

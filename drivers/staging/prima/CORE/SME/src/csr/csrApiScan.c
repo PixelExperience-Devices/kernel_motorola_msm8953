@@ -123,7 +123,6 @@ tCsrIgnoreChannels countryIgnoreList[MAX_COUNTRY_IGNORE] = {
 tCsrIgnoreChannels countryIgnoreList[MAX_COUNTRY_IGNORE] = { };
 #endif //CONFIG_ENABLE_LINUX_REG
 
-#define CSR_IS_SOCIAL_CHANNEL(channel) (((channel) == 1) || ((channel) == 6) || ((channel) == 11) )
 //*** This is temporary work around. It need to call CCM api to get to CFG later
 /// Get string parameter value
 extern tSirRetStatus wlan_cfgGetStr(tpAniSirGlobal, tANI_U16, tANI_U8*, tANI_U32*);
@@ -6669,6 +6668,8 @@ eHalStatus csrProcessMacAddrSpoofCommand( tpAniSirGlobal pMac, tSmeCmd *pCommand
       // spoof mac address
       vos_mem_copy((tANI_U8 *)pMsg->macAddr,
            (tANI_U8 *)pCommand->u.macAddrSpoofCmd.macAddr, sizeof(tSirMacAddr));
+      vos_mem_copy((tANI_U8 *)pMac->roam.spoof_mac_addr,
+           (tANI_U8 *)pCommand->u.macAddrSpoofCmd.macAddr, sizeof(tSirMacAddr));
       pMsg->spoof_mac_oui =
        pal_cpu_to_be16(pCommand->u.macAddrSpoofCmd.spoof_mac_oui);
 
@@ -7060,9 +7061,7 @@ eHalStatus csrScanCopyRequest(tpAniSirGlobal pMac, tCsrScanRequest *pDstReq, tCs
                             {
                                 if((csrRoamIsValidChannel(pMac,
                                                 pSrcReq->ChannelInfo.
-                                                ChannelList[index])) ||
-                                    ((eCSR_SCAN_P2P_DISCOVERY == pSrcReq->requestType) &&
-				    CSR_IS_SOCIAL_CHANNEL(pSrcReq->ChannelInfo.ChannelList[index])))
+                                                ChannelList[index])))
                                 {
                                     /*Skiipping DFS Channels for 1st scan */
                                     if(NV_CHANNEL_DFS ==

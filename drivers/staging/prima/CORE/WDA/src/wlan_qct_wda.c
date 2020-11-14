@@ -199,9 +199,6 @@ static VOS_STATUS WDA_ProcessReceiveFilterSetFilterReq (
                                    tWDA_CbContext *pWDA,
                                    tSirRcvPktFilterCfgType *pRcvPktFilterCfg
                                                        );
-// IKJB42MAIN-1244, Motorola, a19091 - BEGIN
-void WDA_ProcessReceiveFilterSetFilterMcReq(tSirInvokeV6Filter *invokeV6FilterConfig);
-// IKJB42MAIN-1244, Motorola, a19091 - END
 static VOS_STATUS WDA_ProcessPacketFilterMatchCountReq (
                                    tWDA_CbContext *pWDA,
                                    tpSirRcvFltPktMatchRsp pRcvFltPktMatchRsp
@@ -280,10 +277,6 @@ VOS_STATUS WDA_ProcessEncryptMsgReq(tWDA_CbContext *pWDA,
 VOS_STATUS
 WDA_ProcessSetRtsCtsHTVhtInd(tWDA_CbContext *pWDA,
                          tANI_U32 val);
-
-VOS_STATUS
-WDA_ProcessFwrMemDumpReq(tWDA_CbContext *pWDA,
-                                tAniFwrDumpReq* pFwrMemDumpReq);
 
 VOS_STATUS WDA_ProcessMonStartReq( tWDA_CbContext *pWDA, void* wdaRequest);
 VOS_STATUS WDA_ProcessMonStopReq( tWDA_CbContext *pWDA, void* wdaRequest);
@@ -365,6 +358,67 @@ VOS_STATUS WDA_ProcessNanRequest(tWDA_CbContext *pWDA,
    return CONVERT_WDI2VOS_STATUS(status) ;
 }
 
+/*
+ * FUNCTION: WDA_ProcessBlackListReq
+ * Process BlackList request
+ */
+VOS_STATUS WDA_ProcessBlackListReq(tWDA_CbContext *pWDA,
+                                   tRoamParams *wdaRequest)
+{
+   WDI_Status status = WDI_STATUS_SUCCESS;
+   tWDA_ReqParams *pWdaParams;
+   WDI_BlackListReqType *wdiRequest = NULL;
+   size_t wdiReqLength =  sizeof(WDI_BlackListReqType);
+   uint8_t i;
+
+   wdiRequest = (WDI_BlackListReqType *)vos_mem_malloc(wdiReqLength);
+
+   if (NULL == wdiRequest) {
+      VOS_TRACE(VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
+                "%s: VOS MEM Alloc Failure, size : %zu", __func__,
+                wdiReqLength);
+      vos_mem_free(wdaRequest);
+      return VOS_STATUS_E_NOMEM;
+   }
+
+   VOS_TRACE(VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
+             "WDA: Process length of Blacklist data : %zu", wdiReqLength);
+
+   pWdaParams = (tWDA_ReqParams *)vos_mem_malloc(sizeof(tWDA_ReqParams)) ;
+   if (NULL == pWdaParams) {
+      VOS_TRACE(VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
+                "%s: VOS MEM Alloc Failure for tWDA_ReqParams", __func__);
+      VOS_ASSERT(0);
+      vos_mem_free(wdaRequest);
+      vos_mem_free(wdiRequest);
+      return VOS_STATUS_E_NOMEM;
+   }
+
+   wdiRequest->num_bssid_avoid_list = wdaRequest->num_bssid_avoid_list;
+   wdiRequest->blacklist_timedout = wdaRequest->blacklist_timedout;
+
+   for (i = 0; i < wdaRequest->num_bssid_avoid_list; i++) {
+       vos_mem_copy(wdiRequest->bssid_avoid_list[i],
+                    wdaRequest->bssid_avoid_list[i],
+                    sizeof(wpt_macAddr));
+   }
+   vos_mem_free(wdaRequest);
+
+   pWdaParams->pWdaContext = pWDA;
+   pWdaParams->wdaMsgParam = NULL;
+   pWdaParams->wdaWdiApiMsgParam = wdiRequest;
+
+   status = WDI_BlackListReq(wdiRequest, pWdaParams);
+
+   if (IS_WDI_STATUS_FAILURE(status)) {
+      VOS_TRACE(VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
+                "Failure to request.  Free all the memory ");
+      vos_mem_free(pWdaParams->wdaWdiApiMsgParam);
+      vos_mem_free(pWdaParams);
+   }
+
+   return CONVERT_WDI2VOS_STATUS(status);
+}
 /**
  * wda_state_info_dump() - prints state information of wda layer
  */
@@ -650,31 +704,8 @@ VOS_STATUS WDA_start(v_PVOID_t pVosContext)
       return VOS_STATUS_E_FAILURE;
    }
    /* wait for WDI start to invoke our callback */
-   // IKHSS7-38339 - Motorola, a19091, -- START
-   /*status = vos_wait_single_event( &wdaContext->wdaWdiEvent,
-                                   WDA_WDI_START_TIMEOUT ); */
-   if(in_interrupt()) {
-       VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_FATAL,
-               "%s cannot be called from interrupt context!!!", __FUNCTION__);
-       VOS_ASSERT(0);
-       status = VOS_STATUS_E_FAULT;
-   } else if(NULL == &wdaContext->wdaWdiEvent) {
-       VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_FATAL,
-               "Null event used at %s!!!", __FUNCTION__);
-       VOS_ASSERT(0);
-       status = VOS_STATUS_E_FAULT;
-   } else if ( LINUX_EVENT_COOKIE != wdaContext->wdaWdiEvent.cookie ) {
-       VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_FATAL,
-           "Uninitialized event used at %s", __FUNCTION__);
-       VOS_ASSERT(0);
-       status = VOS_STATUS_E_INVAL;
-   } else {
-       long ret;
-       ret = wait_for_completion_timeout(&(wdaContext->wdaWdiEvent.complete),
-               msecs_to_jiffies(WDA_WDI_START_TIMEOUT));
-       status = ( 0 >= ret ) ? VOS_STATUS_E_TIMEOUT : VOS_STATUS_SUCCESS;
-   }
-   // IKHSS7-38339 - Motorola, a19091, -- END
+   status = vos_wait_single_event( &wdaContext->wdaWdiEvent,
+                                   WDA_WDI_START_TIMEOUT );
    if ( !VOS_IS_STATUS_SUCCESS(status) )
    {
       if ( VOS_STATUS_E_TIMEOUT == status )
@@ -15937,70 +15968,6 @@ VOS_STATUS WDA_ProcessSetSpoofMacAddrReq(tWDA_CbContext *pWDA,
    return ;
 }
 
-VOS_STATUS WDA_ProcessFwrMemDumpReq(tWDA_CbContext * pWDA,
-                         tAniFwrDumpReq* pFwrMemDumpReq)
-{
-   VOS_STATUS status = VOS_STATUS_SUCCESS;
-   WDI_Status wstatus;
-   WDI_FwrMemDumpReqType * pWdiFwrMemDumpReq;
-   tWDA_ReqParams *pWdaParams ;
-
-   VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
-                                          "------> %s " ,__func__);
-   /* Sanity Check*/
-   if(NULL == pFwrMemDumpReq)
-   {
-      VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
-                           "%s: pFwrMemDumpReq received NULL", __func__);
-      VOS_ASSERT(0) ;
-      return VOS_STATUS_E_FAULT;
-   }
-
-   pWdiFwrMemDumpReq = (WDI_FwrMemDumpReqType *)vos_mem_malloc(sizeof(WDI_FwrMemDumpReqType));
-   if(NULL == pWdiFwrMemDumpReq)
-   {
-      VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
-                           "%s: pWdiFwrMemDumpReq Alloc Failure", __func__);
-      VOS_ASSERT(0);
-      return VOS_STATUS_E_NOMEM;
-   }
-
-   pWdaParams = (tWDA_ReqParams *)vos_mem_malloc(sizeof(tWDA_ReqParams)) ;
-   if(NULL == pWdaParams)
-   {
-      VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
-                           "%s: pWdaParams Alloc Failure", __func__);
-      VOS_ASSERT(0);
-      vos_mem_free(pWdiFwrMemDumpReq);
-      return VOS_STATUS_E_NOMEM;
-   }
-
-   /* Store Params pass it to WDI */
-   pWdaParams->wdaWdiApiMsgParam = (void *)pWdiFwrMemDumpReq;
-   pWdaParams->pWdaContext = pWDA;
-   /* Store param pointer as passed in by caller */
-   pWdaParams->wdaMsgParam = pFwrMemDumpReq;
-
-   wstatus = WDI_FwrMemDumpReq(pWdiFwrMemDumpReq,
-                              (WDI_FwrMemDumpCb)WDA_FwrMemDumpRespCallback,
-                              pWdaParams);
-
-   if(IS_WDI_STATUS_FAILURE(wstatus))
-   {
-       VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
-                 FL("Fwr Mem Dump Req failed, free all the memory"));
-       status = CONVERT_WDI2VOS_STATUS(wstatus);
-       vos_mem_free(pWdaParams->wdaWdiApiMsgParam) ;
-       pWdaParams->wdaWdiApiMsgParam = NULL;
-       vos_mem_free(pWdaParams->wdaMsgParam);
-       pWdaParams->wdaMsgParam = NULL;
-       vos_mem_free(pWdaParams);
-   }
-
-    return status;
-
-}
-
 /**
  * wda_process_set_allowed_action_frames_ind() - Set allowed action frames to FW
  *
@@ -17536,13 +17503,6 @@ VOS_STATUS WDA_McProcessMsg( v_CONTEXT_t pVosContext, vos_msg_t *pMsg )
          WDA_ProcessReceiveFilterSetFilterReq(pWDA, (tSirRcvPktFilterCfgType *)pMsg->bodyptr);
          break;
       }
-      // IKJB42MAIN-1244, Motorola, a19091 - BEGIN
-      case WDA_RECEIVE_FILTER_SET_FILTER_MC_REQ:
-      {
-          WDA_ProcessReceiveFilterSetFilterMcReq((tSirInvokeV6Filter *)pMsg->bodyptr);
-          break;
-      }
-      // IKJB42MAIN-1244, Motorola, a19091 - END
       case WDA_PACKET_COALESCING_FILTER_MATCH_COUNT_REQ:
       {
          WDA_ProcessPacketFilterMatchCountReq(pWDA, (tpSirRcvFltPktMatchRsp)pMsg->bodyptr);
@@ -17565,11 +17525,6 @@ VOS_STATUS WDA_McProcessMsg( v_CONTEXT_t pVosContext, vos_msg_t *pMsg )
       {
          WDA_ProcessSetPowerParamsReq(pWDA, (tSirSetPowerParamsReq *)pMsg->bodyptr);
          break;
-      }
-      case WDA_FW_MEM_DUMP_REQ:
-      {
-          WDA_ProcessFwrMemDumpReq(pWDA, (tAniFwrDumpReq*)pMsg->bodyptr);
-          break;
       }
 
 #ifdef WLAN_FEATURE_GTK_OFFLOAD
@@ -17777,9 +17732,14 @@ VOS_STATUS WDA_McProcessMsg( v_CONTEXT_t pVosContext, vos_msg_t *pMsg )
          WDA_ProcessNanRequest( pWDA, (tNanRequest *)pMsg->bodyptr);
          break;
       }
+      case WDA_BLACKLIST_REQ:
+      {
+         WDA_ProcessBlackListReq(pWDA, (tRoamParams *)pMsg->bodyptr);
+         break;
+      }
       case WDA_SET_RTS_CTS_HTVHT:
       {
-         WDA_ProcessSetRtsCtsHTVhtInd( pWDA, pMsg->bodyval);
+         WDA_ProcessSetRtsCtsHTVhtInd(pWDA, pMsg->bodyval);
          break;
       }
 
@@ -20835,22 +20795,6 @@ VOS_STATUS WDA_ProcessReceiveFilterSetFilterReq (tWDA_CbContext *pWDA,
    }
    return CONVERT_WDI2VOS_STATUS(status) ;
 }
-
-// IKJB42MAIN-1244, Motorola, a19091 - BEGIN
-/*
- * FUNCTION WDA_ProcessReceiveFilterSetFilterMcReq
- */
-void WDA_ProcessReceiveFilterSetFilterMcReq(tSirInvokeV6Filter *invokeV6FilterConfig)
-{
-    if(invokeV6FilterConfig != NULL)
-    {
-        invokeV6FilterConfig->configureFilterFn(invokeV6FilterConfig->pHddAdapter,
-                invokeV6FilterConfig->set, FALSE);
-        kfree(invokeV6FilterConfig);
-    }
-}
-// IKJB42MAIN-1244, Motorola, a19091 - END
-
 /*
  * FUNCTION: WDA_FilterMatchCountRespCallback
  * 
@@ -21021,6 +20965,8 @@ void WDA_ReceiveFilterClearFilterRespCallback(
                         void * pUserData)
 {
    tWDA_ReqParams *pWdaParams = (tWDA_ReqParams *)pUserData;
+   tSirRcvFltPktClearParam *pktClearParam;
+
    VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
                                           "<------ %s " ,__func__);
 /*   WDA_VOS_ASSERT(NULL != pWdaParams); */
@@ -21032,8 +20978,15 @@ void WDA_ReceiveFilterClearFilterRespCallback(
       return ;
    }
 
+   pktClearParam = (tSirRcvFltPktClearParam *)pWdaParams->wdaMsgParam;
+   if(pktClearParam->pktFilterCallback)
+   {
+       pktClearParam->pktFilterCallback(
+            pktClearParam->cbCtx,
+            CONVERT_WDI2SIR_STATUS(pwdiRcvFltPktClearRspParamsType->wdiStatus));
+   }
+   vos_mem_free(pWdaParams->wdaMsgParam) ;
    vos_mem_free(pWdaParams->wdaWdiApiMsgParam);
-   vos_mem_free(pWdaParams->wdaMsgParam);
    vos_mem_free(pWdaParams) ;
    //print a msg, nothing else to do
    VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
@@ -21048,6 +21001,7 @@ void WDA_ReceiveFilterClearFilterRespCallback(
 void WDA_ReceiveFilterClearFilterReqCallback(WDI_Status wdiStatus, void* pUserData)
 {
    tWDA_ReqParams *pWdaParams = (tWDA_ReqParams *)pUserData;
+   tSirRcvFltPktClearParam *pktClearParam;
 
    VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
               "<------ %s, wdiStatus: %d", __func__, wdiStatus);
@@ -21062,6 +21016,13 @@ void WDA_ReceiveFilterClearFilterReqCallback(WDI_Status wdiStatus, void* pUserDa
 
    if(IS_WDI_STATUS_FAILURE(wdiStatus))
    {
+      pktClearParam = (tSirRcvFltPktClearParam *)pWdaParams->wdaMsgParam;
+      if(pktClearParam->pktFilterCallback)
+      {
+          pktClearParam->pktFilterCallback(
+              pktClearParam->cbCtx,
+              CONVERT_WDI2SIR_STATUS(wdiStatus));
+      }
       vos_mem_free(pWdaParams->wdaWdiApiMsgParam);
       vos_mem_free(pWdaParams->wdaMsgParam);
       vos_mem_free(pWdaParams);
@@ -21119,6 +21080,12 @@ VOS_STATUS WDA_ProcessReceiveFilterClearFilterReq (tWDA_CbContext *pWDA,
    {
       VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
               "Failure in WDA_ProcessReceiveFilterClearFilterReq(), free all the memory " );
+      if(pRcvFltPktClearParam->pktFilterCallback)
+      {
+          pRcvFltPktClearParam->pktFilterCallback(
+                pRcvFltPktClearParam->cbCtx,
+                CONVERT_WDI2SIR_STATUS(status));
+      }
       vos_mem_free(pWdaParams->wdaWdiApiMsgParam) ;
       vos_mem_free(pWdaParams->wdaMsgParam);
       vos_mem_free(pWdaParams);

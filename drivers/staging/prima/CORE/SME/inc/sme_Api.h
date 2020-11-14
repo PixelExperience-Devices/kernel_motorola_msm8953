@@ -2608,16 +2608,6 @@ eHalStatus sme_8023MulticastList(tHalHandle hHal, tANI_U8 sessionId, tpSirRcvFlt
 eHalStatus sme_ReceiveFilterSetFilter(tHalHandle hHal, tpSirRcvPktFilterCfgType pRcvPktFilterCfg,
                                            tANI_U8 sessionId);
 
-// IKJB42MAIN-1244, Motorola, a19091 -- BEGIN
-/* ---------------------------------------------------------------------------
-    \fn sme_ReceiveSetMcFilter
-    \brief  API to set Receive Packet Filter from ISR context
-    \param  tSirInvokeV6Filter - Receive Packet Filter callback param
-    \return eHalStatus
-  ---------------------------------------------------------------------------*/
-eHalStatus sme_ReceiveSetMcFilter(tSirInvokeV6Filter *filterConfig);
-// IKJB42MAIN-1244, Motorola, a19091 -- END
-
 /* ---------------------------------------------------------------------------
     \fn sme_GetFilterMatchCount
     \brief  API to get D0 PC Filter Match Count
@@ -4153,4 +4143,22 @@ static inline eHalStatus sme_handle_sae_msg(tHalHandle hal, uint8_t session_id,
 }
 #endif
 
+#define MAX_BSSID_AVOID_LIST 16
+
+struct roam_ext_params {
+    uint8_t blacklist_timedout;
+    uint8_t num_bssid_avoid_list;
+    v_MACADDR_t bssid_avoid_list[MAX_BSSID_AVOID_LIST];
+};
+
+/**
+ * sme_UpdateBlacklist() - Send blacklist bssid received from user space
+ * @hal: The handle returned by mac_open
+ * @session_id: session id
+ * @roam_ext_params: list of blacklist Bssid
+ *
+ * Return: HAL_STATUS
+ */
+eHalStatus sme_UpdateBlacklist(tHalHandle hHal, uint8_t session_id,
+                               struct roam_ext_params *roam_params);
 #endif //#if !defined( __SME_API_H )

@@ -443,7 +443,6 @@ VOS_STATUS hdd_enter_deep_sleep(hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter)
 VOS_STATUS hdd_exit_deep_sleep(hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter)
 {
    VOS_STATUS vosStatus;
-   eHalStatus halStatus;
 
    VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
       "%s: calling hdd_set_sme_config",__func__);
@@ -480,23 +479,7 @@ VOS_STATUS hdd_exit_deep_sleep(hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter)
       goto err_voss_stop;
    }
 
-
-   //Open a SME session for future operation
-   halStatus = sme_OpenSession( pHddCtx->hHal, hdd_smeRoamCallback, pHddCtx,
-                                (tANI_U8 *)&pAdapter->macAddressCurrent,
-                                &pAdapter->sessionId);
-   if ( !HAL_STATUS_SUCCESS( halStatus ) )
-   {
-      hddLog(VOS_TRACE_LEVEL_FATAL,"sme_OpenSession() failed with status code %08d [x%08x]",
-                    halStatus, halStatus );
-      goto err_voss_stop;
-
-   }
-
    pHddCtx->hdd_ps_state = eHDD_SUSPEND_NONE;
-
-   //Trigger the initial scan
-   hdd_wlan_initial_scan(pAdapter);
 
    return VOS_STATUS_SUCCESS;
 
@@ -1533,7 +1516,7 @@ static void hdd_conf_suspend_ind(hdd_context_t* pHddCtx,
          * function takes care of checking necessary conditions before
          * configuring.
          */
-        //wlan_hdd_set_mc_addr_list(pAdapter, TRUE);
+        wlan_hdd_set_mc_addr_list(pAdapter, TRUE);
 #endif
 
         if( (pHddCtx->cfg_ini->fEnableMCAddrList) && WDA_IS_MCAST_FLT_ENABLE_IN_FW)
@@ -1616,7 +1599,7 @@ static void hdd_conf_resume_ind(hdd_adapter_t *pAdapter)
     /* Filer was applied during suspend inditication
      * clear it when we resume.
      */
-    //wlan_hdd_set_mc_addr_list(pAdapter, FALSE);
+    wlan_hdd_set_mc_addr_list(pAdapter, FALSE);
 #endif
 }
 
@@ -2882,6 +2865,9 @@ err_re_init:
    return -EPERM;
 
 success:
+   pHddCtx->isLogpInProgress = FALSE;
+   vos_set_logp_in_progress(VOS_MODULE_ID_VOSS, FALSE);
+
    hdd_wlan_ssr_reinit_event();
    /* Trigger replay of BTC events */
    send_btc_nlink_msg(WLAN_MODULE_DOWN_IND, 0);
