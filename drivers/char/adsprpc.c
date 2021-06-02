@@ -74,6 +74,7 @@
 #define FASTRPC_STATIC_HANDLE_KERNEL (1)
 
 #define IS_CACHE_ALIGNED(x) (((x) & ((L1_CACHE_BYTES)-1)) == 0)
+#define FASTRPC_STATIC_HANDLE_KERNEL (1)
 
 static void file_free_work_handler(struct work_struct *w);
 
